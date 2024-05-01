@@ -220,7 +220,8 @@ class Bot
 
     begin
       unless browser.p(text: /нет свободного времени/).exists?
-        notify_user('New time for an appointment found!')
+        nlocation = ENV['KDMID_SUBDOMAIN']
+        notify_user("New time for an appointment found in #{nlocation}!")
       else
         # Additional check for web errors
         if browser.div(class: 'error-class').exists? || browser.p(text: /That's an error/).exists?
