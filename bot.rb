@@ -2,6 +2,9 @@ require 'rubygems'
 require 'bundler/setup'
 Bundler.require(:default)
 require 'telegram/bot'
+require 'net/http'
+require 'mini_magick'
+
 
 Watir.default_timeout = 60
 
@@ -118,34 +121,70 @@ class Bot
     end
   end
 
-  def pass_captcha_on_form
-    sleep 3
-
-    if browser.alert.exists?
-      browser.alert.ok
-      puts 'alert found'
-    end
-
-    puts "let's find the captcha image..."
-    captcha_image = browser.images(id: 'ctl00_MainContent_imgSecNum').first
-    captcha_image.wait_until(timeout: 5, &:exists?)
-
-    puts 'save captcha image to file...'
-    image_filepath = "./captches/#{current_time}.png"
-    File.write(image_filepath, captcha_image.to_png)
-
-    puts 'decode captcha...'
-    captcha = client.decode!(path: image_filepath)
-    captcha_code = captcha.text
-    puts "captcha_code: #{captcha_code}"
-
-    # puts 'Enter code:'
-    # code = gets
-    # puts code
-
-    text_field = browser.text_field(id: 'ctl00_MainContent_txtCode')
-    text_field.set captcha_code
+  def report_captcha(captcha_id, is_correct)
+    action = is_correct ? 'reportgood' : 'reportbad'
+    uri = URI("http://2captcha.com/res.php?key=#{ENV['TWO_CAPTCHA_KEY']}&action=#{action}&id=#{captcha_id}")
+    Net::HTTP.get(uri)
   end
+
+  def pass_captcha_on_form_and_report
+    incorrect_attempts = 0
+    max_attempts = ENV.fetch('MAX_INCORRECT_ATTEMPTS', 15).to_i
+  
+    loop do
+      sleep 3
+  
+      if browser.alert.exists?
+        browser.alert.ok
+        puts 'alert found'
+      end
+  
+      puts 'save browser image to file...'
+      image_filepath = "./screenshots/#{current_time}.png"
+      browser_image = browser.screenshot.save(image_filepath)
+
+
+      puts 'crop captcha from screenshot'
+      captcha_path =  "./captches/#{current_time}.png"
+      image = MiniMagick::Image.open(image_filepath)
+      #crop screenshot so 2captcha slaves does not see our personal data
+      captcha_image = image.crop('256x256+517+429')
+      image.write(captcha_path)
+      puts 'delete browser image. only captcha needed'
+      File.delete(image_filepath)
+
+  
+      puts 'decode captcha...'
+      captcha = client.decode!(path: captcha_path)
+      captcha_code = captcha.text
+      captcha_id = captcha.id
+      puts "captcha_code: #{captcha_code}"
+  
+      text_field = browser.text_field(id: 'ctl00_MainContent_txtCode')
+      text_field.set captcha_code
+      browser.button(id: 'ctl00_MainContent_ButtonA').click
+  
+      sleep 3 # Wait for the page to process captcha
+  
+      if browser.text.include?('Символы с картинки введены не правильно')
+        report_captcha(captcha_id, false)
+        incorrect_attempts += 1
+        puts "Captcha was solved incorrectly, attempt #{incorrect_attempts}"
+        if incorrect_attempts >= max_attempts
+          puts "Reached maximum incorrect attempts (#{max_attempts}), sleeping for 1 hour..."
+          notify_user('Reached maximum incorrect attempts! Sleeping for 1 hour...')
+          sleep 3600 # Sleep for 1 hour
+          incorrect_attempts = 0 # Reset attempts after sleep
+        end
+        next # Retry captcha solving
+      else
+        puts "Captcha was solved at attempt #{incorrect_attempts}!"
+        report_captcha(captcha_id, true)
+        break # Exit loop if captcha solved correctly
+      end
+    end
+  end
+  
 
   def click_make_appointment_button
     make_appointment_btn = browser.button(id: 'ctl00_MainContent_ButtonB')
@@ -156,6 +195,7 @@ class Bot
   def save_page
     browser.screenshot.save "./screenshots/#{current_time}.png"
     File.open("./pages/#{current_time}.html", 'w') { |f| f.write browser.html }
+    puts "Save Page with appoitment. If something available notify user"
   end
 
   def check_queue
@@ -167,26 +207,18 @@ class Bot
 
     browser.button(id: 'ctl00_MainContent_ButtonA').wait_until(timeout: 30, &:exists?)
 
-    pass_captcha_on_form
-
-    browser.button(id: 'ctl00_MainContent_ButtonA').click
-
-    sleep 3
-
-    if browser.alert.exists?
-      browser.alert.ok
+    begin
+      pass_captcha_on_form_and_report
+    rescue => e
+      puts e.message
+      retry
     end
-
-    sleep 1
-
-    pass_hcaptcha
-    pass_ddgcaptcha
 
     click_make_appointment_button
 
     save_page
 
-    unless browser.p(text: /Извините, но в настоящий момент/).exists?
+    unless browser.p(text: /нет свободного времени/).exists?
       notify_user('New time for an appointment found!')
     end
 
