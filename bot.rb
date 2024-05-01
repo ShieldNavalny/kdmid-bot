@@ -27,6 +27,11 @@ class Bot
       url: "http://#{ENV.fetch('HUB_HOST')}/wd/hub",
       options: options
     )
+
+    # Ensure the browser is closed when the script exits
+    at_exit do
+      @browser&.close
+    end
   end
 
   def notify_user(message, photo_path = nil)
@@ -228,7 +233,7 @@ class Bot
   end
   
   def web_error_detected?
-    browser.div(class: 'error-class').exists? || browser.p(xpath: ".//*[local-name()='p'][contains(normalize-space(), \"That's an error\")]").exists?
+    browser.div(class: 'error-class').exists? || browser.p(xpath: ".//*[local-name()='p'][contains(normalize-space(), \"Bad\")]").exists?
   end  
   
   def notify_user_about_appointment
