@@ -6,7 +6,7 @@ This bot was originally developed by [accessd](https://github.com/accessd/). I m
 
 - A more understandable .env file
 - Different captcha handling to reduce errors by 2captcha.com
-- Re-passing the captcha and in case of errors and reporting these errors to the service to reduce costs.
+- Re-passing the captcha in case of errors and reporting these errors to the service to reduce costs.
 - Changed parsing conditions of the final page to avoid false positives.
 - Added sending photos of the final page to the bot if there is room
 - Added sending location to the bot 
