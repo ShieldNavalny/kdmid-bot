@@ -59,4 +59,4 @@ Run bot with:
     $ ruby bot.rb
 
 ## Issues
-None so far
+- Browser does not close in some occasions. Which may lead to RAM leak and Selenium may start to refuse connections from bot. I'm looking into this but overall I recommend to restart bot containers in docker after 4-5 hours as temporary solution 
