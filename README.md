@@ -59,5 +59,4 @@ Run bot with:
     $ ruby bot.rb
 
 ## Issues
-
-Problems with hcaptcha: do not pass it periodically
+None so far
