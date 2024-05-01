@@ -218,9 +218,15 @@ class Bot
 
     save_page
 
-    unless browser.p(text: /нет свободного времени/).exists?
-      notify_user('New time for an appointment found!')
-    end
+    begin
+      unless browser.p(text: /нет свободного времени/).exists?
+        notify_user('New time for an appointment found!')
+      else
+        # Additional check for web errors
+        if browser.div(class: 'error-class').exists? || browser.p(text: /That's an error/).exists?
+          raise 'Web error detected! Exception!'
+        end
+      end
 
     browser.close
     puts '=' * 50
