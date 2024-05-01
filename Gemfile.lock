@@ -57,6 +57,7 @@ PLATFORMS
   x86_64-darwin-20
 
 DEPENDENCIES
+  faraday
   mini_magick
   pry
   selenium-webdriver (= 4.3.0)
