@@ -225,11 +225,12 @@ class Bot
     browser.close
     puts '=' * 50
   rescue Exception => e
-    notify_user('exception!')
-    sleep 3
-    browser.close
-    raise e
-  end
+    if ENV['SEND_EXCEPTION'] == 'true'
+      notify_user("Exception occurred: #{e.message}") # Include the error message in the user notification
+      sleep 3
+      browser.close
+      raise e # Re-raise the exception only if the environment variable is set to true
+    end  
 end
 
 Bot.new.check_queue
