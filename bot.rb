@@ -4,7 +4,7 @@ Bundler.require(:default)
 require 'telegram/bot'
 require 'net/http'
 require 'mini_magick'
-
+require 'faraday'
 
 Watir.default_timeout = 60
 
@@ -29,13 +29,15 @@ class Bot
     )
   end
 
-  def notify_user(message)
-    puts message
-    # `say "#{message}"`
+  def notify_user(message, photo_path = nil)
     return unless ENV['TELEGRAM_TOKEN']
-
+  
     Telegram::Bot::Client.run(ENV['TELEGRAM_TOKEN']) do |bot|
-      bot.api.send_message(chat_id: ENV['TELEGRAM_CHAT_ID'], text: message)
+      if photo_path
+        bot.api.send_photo(chat_id: ENV['TELEGRAM_CHAT_ID'], photo: Faraday::UploadIO.new(photo_path, 'image/png'), caption: message)
+      else
+        bot.api.send_message(chat_id: ENV['TELEGRAM_CHAT_ID'], text: message)
+      end
     end
   end
 
@@ -193,7 +195,8 @@ class Bot
   end
 
   def save_page
-    browser.screenshot.save "./screenshots/#{current_time}.png"
+    screenshot_path = "./screenshots/#{current_time}.png"
+    browser.screenshot.save(screenshot_path)
     File.open("./pages/#{current_time}.html", 'w') { |f| f.write browser.html }
     puts "Save Page with appoitment. If something available notify user"
   end
@@ -221,7 +224,7 @@ class Bot
     begin
       unless browser.p(text: /нет свободного времени/).exists?
         nlocation = ENV['KDMID_SUBDOMAIN']
-        notify_user("New time for an appointment found in #{nlocation}!")
+        notify_user("New time for an appointment found in #{nlocation}!", screenshot_path)
       else
         # Additional check for web errors
         if browser.div(class: 'error-class').exists? || browser.p(text: /That's an error/).exists?
