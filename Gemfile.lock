@@ -20,6 +20,7 @@ GEM
     faraday-net_http (2.1.0)
     ice_nine (0.11.2)
     method_source (1.0.0)
+    mini_magick (4.12.0)
     multipart-post (2.2.3)
     pry (0.14.1)
       coderay (~> 1.1)
@@ -56,6 +57,7 @@ PLATFORMS
   x86_64-darwin-20
 
 DEPENDENCIES
+  mini_magick
   pry
   selenium-webdriver (= 4.3.0)
   telegram-bot-ruby
