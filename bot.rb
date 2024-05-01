@@ -30,8 +30,17 @@ class Bot
 
     # Ensure the browser is closed when the script exits
     at_exit do
-      @browser&.close
-    end
+      begin
+        if @browser && @browser.exists?
+          @browser.close
+          puts "Browser closed successfully."
+        else
+          puts "Browser was not open or already closed."
+        end
+      rescue => e
+        puts "Error closing browser: #{e.message}"
+      end
+    end    
   end
 
   def notify_user(message, photo_path = nil)
