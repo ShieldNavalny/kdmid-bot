@@ -30,7 +30,7 @@ class Bot
   end
 
   def notify_user(message, photo_path = nil)
-    return unless ENV['TELEGRAM_TOKEN']
+    return unless ENV['TELEGRAM_TOKEN'] && ENV['TELEGRAM_CHAT_ID']
   
     Telegram::Bot::Client.run(ENV['TELEGRAM_TOKEN']) do |bot|
       if photo_path
@@ -39,7 +39,10 @@ class Bot
         bot.api.send_message(chat_id: ENV['TELEGRAM_CHAT_ID'], text: message)
       end
     end
+  rescue => e
+    puts "Error sending message to Telegram: #{e.message}"
   end
+  
 
   def pass_hcaptcha
     sleep 5
@@ -194,53 +197,59 @@ class Bot
     make_appointment_btn.click
   end
 
-  def save_page
+  def check_queue
+    puts "===== Current time: #{current_time} ====="
+    begin
+      browser.goto link
+  
+      pass_hcaptcha
+      pass_ddgcaptcha
+  
+      browser.button(id: 'ctl00_MainContent_ButtonA').wait_until(timeout: 30, &:exists?)
+      pass_captcha_on_form_and_report
+  
+      click_make_appointment_button
+  
+      if appointment_available?
+        notify_user_about_appointment
+      elsif web_error_detected?
+        raise 'Web error detected! Exception!'
+      end
+    rescue Exception => e
+      handle_exception(e)
+    ensure
+      browser.close
+      puts '=' * 50
+    end
+  end
+  
+  def appointment_available?
+    !browser.p(text: /нет свободного времени/).exists?
+  end
+  
+  def web_error_detected?
+    browser.div(class: 'error-class').exists? || browser.p(xpath: ".//*[local-name()='p'][contains(normalize-space(), \"That's an error\")]").exists?
+  end  
+  
+  def notify_user_about_appointment
+    nlocation = ENV['KDMID_SUBDOMAIN']
     screenshot_path = "./screenshots/#{current_time}.png"
     browser.screenshot.save(screenshot_path)
     File.open("./pages/#{current_time}.html", 'w') { |f| f.write browser.html }
-    puts "Save Page with appoitment. If something available notify user"
+    puts "Notifying user about appointment with screenshot"
+    notify_user("✅ New time for an appointment found in #{nlocation}!", screenshot_path)
   end
-
-  def check_queue
-    puts "===== Current time: #{current_time} ====="
-    browser.goto link
-
-    pass_hcaptcha
-    pass_ddgcaptcha
-
-    browser.button(id: 'ctl00_MainContent_ButtonA').wait_until(timeout: 30, &:exists?)
-
-    begin
-      pass_captcha_on_form_and_report
-    rescue => e
-      puts e.message
-      retry
-    end
-
-    click_make_appointment_button
-
-    save_page
-
-    begin
-      unless browser.p(text: /нет свободного времени/).exists?
-        nlocation = ENV['KDMID_SUBDOMAIN']
-        notify_user("New time for an appointment found in #{nlocation}!", screenshot_path)
-      else
-        # Additional check for web errors
-        if browser.div(class: 'error-class').exists? || browser.p(text: /That's an error/).exists?
-          raise 'Web error detected! Exception!'
-        end
-      end
-
-    browser.close
-    puts '=' * 50
-  rescue Exception => e
+  
+  def handle_exception(e)
+    puts "Exception occurred: #{e.message}"
     if ENV['SEND_EXCEPTION'] == 'true'
-      notify_user("Exception occurred: #{e.message}") # Include the error message in the user notification
-      sleep 3
-      browser.close
-      raise e # Re-raise the exception only if the environment variable is set to true
-    end  
+      begin
+        notify_user("⚠️ Exception occurred: #{e.message}")
+      rescue => e
+        puts "Failed to send exception notification to Telegram: #{e.message}"
+      end
+    end
+  end
 end
 
 Bot.new.check_queue
