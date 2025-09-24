@@ -216,71 +216,94 @@ class Bot
   end
   
 
-  def click_make_appointment_button
+def click_make_appointment_button
+  content_element = browser.span(id: 'ctl00_MainContent_Content')
+  content_text = content_element.text
+  notify_user("*Проверка:*\n\n#{content_text}")
 
-    # Найти элемент по ID ctl00_MainContent_Content и получить его текст
-    content_element = browser.span(id: 'ctl00_MainContent_Content')
-    content_text = content_element.text
-    # Отправить текст в Telegram
-    notify_user("*Проверка:*\n\n#{content_text}")
+  make_appointment_btn = browser.button(id: 'ctl00_MainContent_ButtonB')
+  make_appointment_btn.wait_until(timeout: 60, &:exists?)
+  make_appointment_btn.click
+end
 
-    make_appointment_btn = browser.button(id: 'ctl00_MainContent_ButtonB')
-    make_appointment_btn.wait_until(timeout: 60, &:exists?)
-    make_appointment_btn.click
-  end
+def save_page
+  timestamp = current_time
+  screenshot_path = "./screenshots/#{timestamp}.png"
+  html_path = "./pages/#{timestamp}.html"
+  browser.screenshot.save(screenshot_path)
+  File.write(html_path, browser.html)
+  [screenshot_path, html_path]
+end
 
-  def check_queue
-    puts "===== Current time: #{current_time} ====="
+def appointment_available?
+  !browser.p(text: /нет свободного времени/).exists?
+end
+
+def web_error_detected?
+  browser.div(class: 'error-class').exists? ||
+    browser.p(xpath: ".//*[local-name()='p'][contains(normalize-space(), 'Bad')]").exists?
+end
+
+def stop_text_found?
+  failure_texts = [
+    'Извините, но в настоящий момент',
+    'Свободное время в системе записи отсутствует',
+    'Для проверки наличия свободного времени',
+    'нет свободного времени',
+    'Bad Gateway'
+  ]
+  failure_texts.any? { |text| browser.text.include?(text) }
+end
+
+def get_center_panel_text
+  browser.td(id: 'center-panel')&.text.to_s
+end
+
+def notify_user_about_appointment(panel_text, screenshot_path)
+  nlocation = ENV['KDMID_SUBDOMAIN']
+  puts "Notifying user about appointment with screenshot"
+  notify_user("✅ New time for an appointment found in #{nlocation}!\n\n#{panel_text}", screenshot_path)
+end
+
+def handle_exception(e)
+  puts "Exception occurred: #{e.message}"
+  if ENV['SEND_EXCEPTION'] == 'true'
     begin
-      browser.goto link
-  
-      pass_hcaptcha
-      pass_ddgcaptcha
-  
-      browser.button(id: 'ctl00_MainContent_ButtonA').wait_until(timeout: 30, &:exists?)
-      pass_captcha_on_form_and_report
-  
-      click_make_appointment_button
-  
-      if appointment_available?
-        notify_user_about_appointment
-      elsif web_error_detected?
-        raise 'Web error detected! Exception!'
-      end
-    rescue Exception => e
-      handle_exception(e)
-    ensure
-      browser.close
-      puts '=' * 50
+      notify_user("⚠️ Exception occurred: #{e.message}")
+    rescue => notify_err
+      puts "Failed to send exception notification to Telegram: #{notify_err.message}"
     end
   end
-  
-  def appointment_available?
-    !browser.p(text: /нет свободного времени/).exists?
-  end
-  
-  def web_error_detected?
-    browser.div(class: 'error-class').exists? || browser.p(xpath: ".//*[local-name()='p'][contains(normalize-space(), \"Bad\")]").exists?
-  end  
-  
-  def notify_user_about_appointment
-    nlocation = ENV['KDMID_SUBDOMAIN']
-    screenshot_path = "./screenshots/#{current_time}.png"
-    browser.screenshot.save(screenshot_path)
-    File.open("./pages/#{current_time}.html", 'w') { |f| f.write browser.html }
-    puts "Notifying user about appointment with screenshot"
-    notify_user("✅ New time for an appointment found in #{nlocation}!", screenshot_path)
-  end
-  
-  def handle_exception(e)
-    puts "Exception occurred: #{e.message}"
-    if ENV['SEND_EXCEPTION'] == 'true'
-      begin
-        notify_user("⚠️ Exception occurred: #{e.message}")
-      rescue => e
-        puts "Failed to send exception notification to Telegram: #{e.message}"
-      end
+end
+
+def check_queue
+  puts "===== Current time: #{current_time} ====="
+  begin
+    browser.goto link
+
+    pass_hcaptcha
+    pass_ddgcaptcha
+
+    browser.button(id: 'ctl00_MainContent_ButtonA').wait_until(timeout: 30, &:exists?)
+    pass_captcha_on_form_and_report
+
+    click_make_appointment_button
+
+    panel_text = get_center_panel_text
+    screenshot_path, _ = save_page
+
+    if appointment_available? && !stop_text_found? && !web_error_detected?
+      notify_user_about_appointment(panel_text, screenshot_path)
+    else
+      puts "No appointment available or error detected"
     end
+  rescue Exception => e
+    handle_exception(e)
+    notify_user("*Мест нет!*\n\n#{get_center_panel_text}")
+    raise e
+  ensure
+    browser.close
+    puts '=' * 50
   end
 end
 
