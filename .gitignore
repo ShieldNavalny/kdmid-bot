@@ -23,4 +23,11 @@ screenshots/*.png
 # Ignore .env
 /.env*
 !.env.example
-/bin
+
+/bin/bot-*
+!compose.example.yml
+/compose.*
+
+kdmid-bot.log
+# Ignore compose overwrite
+# Ignore temporary files

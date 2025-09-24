@@ -18,7 +18,11 @@ GEM
     faraday-multipart (1.0.4)
       multipart-post (~> 2)
     faraday-net_http (2.1.0)
+    ffi (1.16.3)
     ice_nine (0.11.2)
+    image_processing (1.12.2)
+      mini_magick (>= 4.9.5, < 5)
+      ruby-vips (>= 2.0.17, < 3)
     method_source (1.0.0)
     mini_magick (4.12.0)
     multipart-post (2.2.3)
@@ -27,6 +31,8 @@ GEM
       method_source (~> 1.0)
     regexp_parser (2.5.0)
     rexml (3.2.5)
+    ruby-vips (2.2.1)
+      ffi (~> 1.12)
     ruby2_keywords (0.0.5)
     rubyzip (2.3.2)
     selenium-webdriver (4.3.0)
@@ -57,8 +63,9 @@ PLATFORMS
   x86_64-darwin-20
 
 DEPENDENCIES
-  faraday
+  image_processing (~> 1.0)
   mini_magick
+  faraday
   pry
   selenium-webdriver (= 4.3.0)
   telegram-bot-ruby

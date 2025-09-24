@@ -18,7 +18,9 @@ class Bot
     @current_time = Time.now.utc.to_s
     puts 'Init...'
 
-    options = {}
+    options = {
+      accept_insecure_certs: true,
+    }
     if ENV['BROWSER_PROFILE']
       options.merge!(profile: ENV['BROWSER_PROFILE'])
     end
@@ -55,6 +57,15 @@ class Bot
     end
   rescue => e
     puts "Error sending message to Telegram: #{e.message}"
+  end
+  
+
+  def send_scr(photo_path)
+    return unless ENV['TELEGRAM_TOKEN']
+  
+    Telegram::Bot::Client.run(ENV['TELEGRAM_TOKEN']) do |bot|
+      bot.api.send_photo(chat_id: ENV['TELEGRAM_CHAT_ID'], photo: Faraday::UploadIO.new(photo_path, 'image/png'))
+    end
   end
   
 
@@ -206,6 +217,13 @@ class Bot
   
 
   def click_make_appointment_button
+
+    # Найти элемент по ID ctl00_MainContent_Content и получить его текст
+    content_element = browser.span(id: 'ctl00_MainContent_Content')
+    content_text = content_element.text
+    # Отправить текст в Telegram
+    notify_user("*Проверка:*\n\n#{content_text}")
+
     make_appointment_btn = browser.button(id: 'ctl00_MainContent_ButtonB')
     make_appointment_btn.wait_until(timeout: 60, &:exists?)
     make_appointment_btn.click
