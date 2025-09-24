@@ -50,15 +50,24 @@ class Bot
   
     Telegram::Bot::Client.run(ENV['TELEGRAM_TOKEN']) do |bot|
       if photo_path
-        bot.api.send_photo(chat_id: ENV['TELEGRAM_CHAT_ID'], photo: Faraday::UploadIO.new(photo_path, 'image/png'), caption: message)
+        bot.api.send_photo(
+          chat_id: ENV['TELEGRAM_CHAT_ID'],
+          photo: Faraday::UploadIO.new(photo_path, 'image/png'),
+          caption: message,
+          parse_mode: 'Markdown'
+        )
       else
-        bot.api.send_message(chat_id: ENV['TELEGRAM_CHAT_ID'], text: message)
+        bot.api.send_message(
+          chat_id: ENV['TELEGRAM_CHAT_ID'],
+          text: message,
+          parse_mode: 'Markdown'
+        )
       end
     end
   rescue => e
     puts "Error sending message to Telegram: #{e.message}"
   end
-  
+
 
   def send_scr(photo_path)
     return unless ENV['TELEGRAM_TOKEN']
@@ -177,11 +186,16 @@ class Bot
       puts 'crop captcha from screenshot'
       captcha_path =  "./captches/#{current_time}.png"
       image = MiniMagick::Image.open(image_filepath)
-      #crop screenshot so 2captcha slaves does not see our personal data
-      captcha_image = image.crop('256x256+517+429')
-      image.write(captcha_path)
-      puts 'delete browser image. only captcha needed'
-      File.delete(image_filepath)
+
+      # Проверка размеров перед обрезкой
+      if image.width >= 773 && image.height >= 685
+        puts 'crop captcha from screenshot'
+        captcha_image = image.crop('256x256+517+429')
+        image.write(captcha_path)
+      else
+        puts 'Unexpected image size, skipping crop'
+        FileUtils.cp(image_filepath, captcha_path)
+      end
 
   
       puts 'decode captcha...'
@@ -256,8 +270,13 @@ def stop_text_found?
 end
 
 def get_center_panel_text
-  browser.td(id: 'center-panel')&.text.to_s
+  panel = browser.td(id: 'center-panel')
+  panel.wait_until(timeout: 10, &:exists?)
+  panel.text.to_s
+rescue
+  ''
 end
+
 
 def notify_user_about_appointment(panel_text, screenshot_path)
   nlocation = ENV['KDMID_SUBDOMAIN']
